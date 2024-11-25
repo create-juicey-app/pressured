@@ -1,3 +1,5 @@
+import math  # Add this import if not already present
+
 # Screen dimensions
 WIDTH, HEIGHT = 800, 600
 GRID_SIZE = 600
@@ -5,13 +7,13 @@ ROWS, COLS = 20, 20
 TILE_SIZE = GRID_SIZE // COLS
 SIDEBAR_WIDTH = WIDTH /4
 MAX_PRESSURE = 10.0
-GAS_SPREAD_RATE = 0.1
+GAS_SPREAD_RATE = 0.05
 MACHINE_DAMAGE_RATE = 0.05
 VACUUM_COLOR = (35, 35, 40)  # Slightly blueish dark
-MIN_O2_FOR_ENGINE = 5.0
+MIN_N2_FOR_ENGINE = 2.0  # Rename to MIN_N2_FOR_ENGINE if you want to be more precise
 PLANT_O2_RATE = 0.1
 PLANT_CO2_CONSUMPTION = 0.2
-SPAC_CO2_RATE = 1.0
+SPAC_N2_RATE = 2.0  # Changed from SPAC_CO2_RATE
 PIPE_COLOR = (168, 132, 80)  # Warmer brown
 
 # Base Colors
@@ -53,6 +55,7 @@ YELLOW = (251, 188, 4)       # Google Yellow
 CYAN = (24, 190, 200)        # Bright Cyan
 ORANGE = (250, 123, 5)       # Bright Orange
 YELLOW_BRIGHT = (255, 235, 59)  # Material Yellow
+
 
 SNACKBAR_HEIGHT = 50
 SNACKBAR_DURATION = 3000  # Duration in milliseconds

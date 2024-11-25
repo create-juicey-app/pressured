@@ -36,3 +36,12 @@ class GasCell:
             diff = (other - current) * rate
             setattr(self, gas_type, current + diff)
             setattr(other_gas, gas_type, other - diff)
+    
+    def get_gas(self, gas_type: str) -> float:
+        if gas_type == 'o2':
+            return self.o2
+        elif gas_type == 'co2':
+            return self.co2
+        elif gas_type == 'n2':
+            return self.n2
+        return 0

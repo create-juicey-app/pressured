@@ -18,6 +18,7 @@ class Tile:
         self.component = None
         self.wire = False
         self.pipe = False
+        self.pipe_network = None  # Add this attribute
         self.powered = False
         self.gases = GasCell()
         self.damage = 0.0
@@ -61,7 +62,22 @@ class Tile:
                 pygame.draw.lines(win, YELLOW_BRIGHT, False, bolt_points, 2)
 
         if self.pipe:
-            # Draw pipe connections
+            # Determine gas color for pipe based on predominant gas
+            pipe_color = PIPE_COLOR  # Default color
+            if self.pipe_network:
+                total_gas = self.pipe_network.gases.total()
+                if total_gas > 0:
+                    o2 = self.pipe_network.gases.o2
+                    co2 = self.pipe_network.gases.co2
+                    n2 = self.pipe_network.gases.n2
+                    if max(o2, co2, n2) == o2:
+                        pipe_color = (100, 200, 255)  # Blue for O2
+                    elif max(o2, co2, n2) == co2:
+                        pipe_color = (255, 100, 100)  # Red for CO2
+                    elif max(o2, co2, n2) == n2:
+                        pipe_color = (200, 200, 200)  # Gray for N2
+
+            # Draw pipe connections with colored center and orange outline
             for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                 new_row, new_col = self.row + dr, self.col + dc
                 if (0 <= new_row < ROWS and 
@@ -71,13 +87,20 @@ class Tile:
                     start_y = self.y + TILE_SIZE // 2
                     end_x = start_x + dc * TILE_SIZE
                     end_y = start_y + dr * TILE_SIZE
+                    # Draw orange outline (thicker line)
                     pygame.draw.line(win, PIPE_COLOR, (start_x, start_y), 
-                                  (end_x, end_y), 3)
+                                  (end_x, end_y), 4)
+                    # Draw colored center (thinner line)
+                    pygame.draw.line(win, pipe_color, (start_x, start_y), 
+                                  (end_x, end_y), 2)
 
-            # Draw pipe node
+            # Draw pipe node with colored center and orange outline
             center_x = self.x + TILE_SIZE // 2
             center_y = self.y + TILE_SIZE // 2
+            # Draw orange outline circle
             pygame.draw.circle(win, PIPE_COLOR, (center_x, center_y), 4)
+            # Draw colored center circle (smaller)
+            pygame.draw.circle(win, pipe_color, (center_x, center_y), 3)
             
         if self.component:
             inner_rect = pygame.Rect(
@@ -142,8 +165,8 @@ class Tile:
         return base_color
 
     def spread_gas(self, neighbors):
-        if self.wall:  # Walls don't spread gas
-            return
+        if self.wall or self.pipe:
+            return  # Walls and pipes don't spread gas
             
         valid_neighbors = [n for n in neighbors if not n.wall]
         if not valid_neighbors:

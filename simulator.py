@@ -7,11 +7,12 @@ from constants import *
 from enums import Mode, Tool
 from gas import GasCell
 from room import Room, RoomInfoPopup
-from components import Engine, OxygenGenerator, InputVent, OutputVent, Plant, Spac12  # Update imports
+from components import Engine, OxygenGenerator, InputVent, OutputVent, Plant, Spac12, PipeNetwork  # Ensure PipeNetwork is imported
 from snackbar import Snackbar
 from tile import Tile
 import time
 from ui import UI
+from particle import Particle  # Add this import
 
 class Simulator:
     def __init__(self):
@@ -44,6 +45,8 @@ class Simulator:
                 tile.gases = GasCell()
                 # Initialize the tile as vacuum
                 self.update_vacuum_state(tile)
+        
+        self.particles = []  # Initialize particle list
 
     def ease_out_cubic(self, x):
         return 1 - pow(1 - x, 3)
@@ -253,10 +256,35 @@ class Simulator:
         for row in range(ROWS):
             for col in range(COLS):
                 tile = self.grid[row][col]
-                if tile.wall or tile.door:  # Skip walls AND closed doors
+                if tile.wall or tile.pipe:  # Skip walls and pipes
+                    continue
+
+                # If this is a pipe tile, only interact with other pipes and components
+                if tile.pipe:
+                    for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                        new_row, new_col = row + dr, col + dc
+                        if (0 <= new_row < ROWS and 0 <= new_col < COLS):
+                            neighbor = self.grid[new_row][new_col]
+                            
+                            # Only allow pipe-to-pipe or pipe-to-component gas transfer
+                            if neighbor.pipe or (neighbor.component and not isinstance(neighbor.component, InputVent)):
+                                curr_gas = old_gases[row][col]
+                                neighbor_gas = old_gases[new_row][new_col]
+                                spread_rate = GAS_SPREAD_RATE
+                                
+                                for gas_type in ['o2', 'co2', 'n2']:
+                                    curr_val = getattr(curr_gas, gas_type)
+                                    neighbor_val = getattr(neighbor_gas, gas_type)
+                                    diff = (curr_val - neighbor_val) * spread_rate
+                                    setattr(tile.gases, gas_type, getattr(tile.gases, gas_type) - diff)
+                                    setattr(neighbor.gases, gas_type, getattr(neighbor.gases, gas_type) + diff)
+                    continue  # Skip regular gas spreading for pipes
+
+                # For non-pipe tiles, don't interact with pipes
+                if tile.door:  # Skip closed doors
                     continue
                     
-                # Get valid neighbors (no walls, respect doors)
+                # Get valid neighbors (no walls, no pipes, no doors)
                 valid_neighbors = []
                 curr_gas = old_gases[row][col]
                 
@@ -264,9 +292,9 @@ class Simulator:
                     new_row, new_col = row + dr, col + dc
                     if (0 <= new_row < ROWS and 0 <= new_col < COLS):
                         neighbor = self.grid[new_row][new_col]
-                        if not neighbor.wall and not neighbor.door:  # Only spread through open tiles
+                        if not neighbor.wall and not neighbor.door and not neighbor.pipe:
                             valid_neighbors.append((new_row, new_col))
-                
+
                 if not valid_neighbors:
                     continue
 
@@ -299,7 +327,33 @@ class Simulator:
                 )
             room.update()
 
+    def assign_pipe_networks(self):
+        visited = set()
+        for row in range(ROWS):
+            for col in range(COLS):
+                tile = self.grid[row][col]
+                if tile.pipe and tile not in visited:
+                    pipe_network = PipeNetwork()
+                    self._dfs_pipe_network(tile, pipe_network, visited)
+
+    def _dfs_pipe_network(self, tile, pipe_network, visited):
+        visited.add(tile)
+        pipe_network.add_tile(tile)
+        row, col = tile.row, tile.col
+        for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            nr, nc = row + dr, col + dc
+            if 0 <= nr < ROWS and 0 <= nc < COLS:
+                neighbor = self.grid[nr][nc]
+                if neighbor.pipe and neighbor not in visited:
+                    self._dfs_pipe_network(neighbor, pipe_network, visited)
+
     def propagate_power(self, start_tile):
+        # Only propagate if the tile has a powered engine
+        if not (start_tile.component and 
+                isinstance(start_tile.component, Engine) and 
+                start_tile.component.powered):
+            return set()
+
         to_check = {start_tile}
         powered = set()
         
@@ -324,11 +378,18 @@ class Simulator:
         for row in self.grid:
             for tile in row:
                 tile.powered = False
-        
-        # Propagate power from engines
+
+        # First run engines to determine their power state
         for row in self.grid:
             for tile in row:
                 if tile.component and isinstance(tile.component, Engine):
+                    tile.component.run()  # This sets the engine's powered state based on gases
+
+        # Then propagate power only from powered engines
+        for row in self.grid:
+            for tile in row:
+                if (tile.component and isinstance(tile.component, Engine) and 
+                    tile.component.powered):  # Only propagate if engine is actually powered
                     self.propagate_power(tile)
 
     def run(self):
@@ -339,6 +400,7 @@ class Simulator:
             
             if self.update_counter % 10 == 0:
                 self.update_power_network()
+                self.assign_pipe_networks()  # Assign pipe networks every update
                 for row in self.grid:
                     for tile in row:
                         if tile.component:
@@ -383,6 +445,9 @@ class Simulator:
                 for tile in row:
                     tile.draw(game_view_surface)
             
+            # Draw particles after drawing tiles
+            self.draw_particles(game_view_surface)
+
             # Draw game view with offset
             self.win.blit(game_view_surface, (self.ui.game_view_offset, 0))
             
@@ -411,7 +476,8 @@ class Simulator:
             
             pygame.display.flip()
 
-
+            # Update particles
+            self.update_particles()
 
         pygame.quit()
         pygame.quit()
@@ -422,3 +488,13 @@ class Simulator:
             room_tiles = self.flood_fill(tile)
             if not room_tiles:  # If flood fill returns empty set, it's vacuum
                 tile.room = None  # Ensure it's None to mark as vacuum
+
+    def update_particles(self):
+        for particle in self.particles[:]:
+            particle.update()
+            if not particle.is_alive():
+                self.particles.remove(particle)
+
+    def draw_particles(self, surface):
+        for particle in self.particles:
+            particle.draw(surface)

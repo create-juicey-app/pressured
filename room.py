@@ -1,5 +1,5 @@
 from gas import GasCell
-from constants import MAX_PRESSURE, MACHINE_DAMAGE_RATE, DARK_GRID, WHITE, ORANGE, GREEN, RED, BLUE
+from constants import MAX_PRESSURE, MACHINE_DAMAGE_RATE, DARK_GRID, WHITE, ORANGE, GREEN, RED, BLUE, YELLOW
 import pygame
 import math
 
@@ -26,6 +26,30 @@ class Room:
     
     def consume_gas(self, gas_type: str, amount: float):
         self.gases.consume_gas(gas_type, amount)
+
+    def get_breathability(self):
+        o2_level = self.gases.o2
+        co2_level = self.gases.co2
+        n2_level = self.gases.n2
+
+        # Check for O2 toxicity first (increased threshold)
+        if o2_level >= 350:  # Changed from 300
+            return "O2 Toxic"
+
+        # Rest of the conditions remain the same
+        if (o2_level >= 50 and o2_level <= 100 and 
+            co2_level < 4 and n2_level < 4):
+            return "Very Breathable"
+        
+        if (o2_level >= 30 and 
+            co2_level < 10 and n2_level < 10):
+            return "Breathable"
+        
+        if (o2_level >= 5 and 
+            co2_level < 20 and n2_level < 20):
+            return "Barely Breathable"
+        
+        return "Unbreathable"
 
 class RoomInfoPopup:
     def __init__(self, room, pos):
@@ -122,7 +146,7 @@ class RoomInfoPopup:
             f"CO2: {self.room.gases.co2:.1f}",
             f"N2: {self.room.gases.n2:.1f}",
             f"Damage: {self.room.damage:.1%}",
-            f"Breathable: {self.room.breathable}",
+            f"Status: {self.room.get_breathability()}",  # Add breathing status
             f"Pressure: {self.room.pressure():.1f}/{MAX_PRESSURE}"
         ]
         
@@ -130,6 +154,17 @@ class RoomInfoPopup:
             text_surface = self.font.render(text, True, (*WHITE, self.opacity))
             popup_surface.blit(text_surface, (x, y))
             y += 20
+        
+        # Draw colored status indicator
+        status = self.room.get_breathability()
+        status_color = GREEN if status == "Very Breathable" else \
+                      BLUE if status == "Breathable" else \
+                      YELLOW if status == "Barely Breathable" else \
+                      ORANGE if status == "O2 Toxic" else RED
+                      
+        status_rect = pygame.Rect(x + 10, y + len(texts) * 20, 10, 10)
+        pygame.draw.circle(popup_surface, (*status_color, self.opacity), 
+                         status_rect.center, 5)
         
         # Draw gas composition bar
         bar_width = 200

@@ -109,12 +109,19 @@ class UI:
         y_pos = 10
         
         # Update the button checks
-        relative_mouse_pos = (mouse_pos[0] - sidebar_x, mouse_pos[1] + self.scroll_y)
+        relative_mouse_pos = (
+            mouse_pos[0] - sidebar_x,
+            mouse_pos[1] + self.scroll_y
+        )
+        screen_relative_mouse_pos = (
+            mouse_pos[0] - sidebar_x,
+            mouse_pos[1]
+        )
 
-        # Draw mode buttons on sidebar surface
+        # When checking button collisions, use screen_relative_mouse_pos
         for mode_option in Mode:
             button_rect = pygame.Rect(10, y_pos - self.scroll_y, SIDEBAR_WIDTH - 20, 30)
-            is_hover = button_rect.collidepoint(relative_mouse_pos[0], relative_mouse_pos[1] - self.scroll_y)
+            is_hover = button_rect.collidepoint(screen_relative_mouse_pos)
             is_active = mode == mode_option
             self.draw_button(
                 button_rect, 
@@ -138,7 +145,7 @@ class UI:
                 # Tool buttons
                 for tool in tools:
                     button_rect = pygame.Rect(15, y_pos - self.scroll_y, SIDEBAR_WIDTH - 30, 25)
-                    is_hover = button_rect.collidepoint(relative_mouse_pos[0], relative_mouse_pos[1] - self.scroll_y)
+                    is_hover = button_rect.collidepoint(screen_relative_mouse_pos)
                     is_active = selected_tool == tool
                     self.draw_button(
                         button_rect,
@@ -150,6 +157,74 @@ class UI:
                     )
                     y_pos += 30
                 y_pos += 10
+
+        if mode == Mode.INSPECT:
+            # Create a font for the scale - bigger than before
+            scale_font = pygame.font.SysFont('arial', int(self.font.get_height() / 2))
+            
+            y_pos += 20
+            header_rect = pygame.Rect(5, y_pos - self.scroll_y, SIDEBAR_WIDTH - 10, 30)
+            self.draw_paper_container(header_rect, UI_SURFACE, surface=sidebar_surface)
+            title_surface = self.font.render("Breathing Scale", True, UI_ACCENT)
+            sidebar_surface.blit(title_surface, (15, y_pos - self.scroll_y + 5))
+            y_pos += 35
+
+            # Draw vertical breathing level progress bar
+            bar_height = 200  # Taller bar
+            bar_width = 30    # Wider bar
+            text_padding = 10  # Space between bar and text
+            
+            bar_rect = pygame.Rect(20, y_pos - self.scroll_y, bar_width, bar_height)
+            
+            # Define color segments (from bottom to top)
+            colors = [RED, ORANGE, GREEN, BLUE, GREEN, ORANGE, RED]
+            segment_height = bar_height / len(colors)
+            
+            # Draw background
+            pygame.draw.rect(sidebar_surface, DARK_GRID, bar_rect)
+            
+            # Draw color segments (from bottom to top)
+            for i, color in enumerate(reversed(colors)):  # Reverse to start from bottom
+                segment_rect = pygame.Rect(
+                    bar_rect.x,
+                    bar_rect.y + (i * segment_height),
+                    bar_width,
+                    segment_height
+                )
+                pygame.draw.rect(sidebar_surface, color, segment_rect)
+            
+            # Draw border
+            pygame.draw.rect(sidebar_surface, WHITE, bar_rect, 1)
+            
+            # Add labels with gas amounts (from bottom to top)
+            labels = [
+                ("Toxic", "O₂<5"),
+                ("Low O₂", "<30"),
+                ("Good", "O₂>30"),
+                ("Perfect", "O₂:50-100\nCO₂,N₂<4"),
+                ("Good", "O₂>30"),
+                ("High", "CO₂,N₂>10"),
+                ("O₂ Toxic", "O₂>350")  # Updated threshold
+            ]
+            
+            text_x = bar_rect.right + text_padding
+            available_width = SIDEBAR_WIDTH - text_x - text_padding
+            
+            for i, (label, value) in enumerate(reversed(labels)):  # Reverse to match bar
+                text_y = bar_rect.y + (i * segment_height) + (segment_height / 2)
+                
+                # Draw label
+                label_surface = scale_font.render(label, True, WHITE)
+                label_rect = label_surface.get_rect(left=text_x, centery=text_y - 8)
+                sidebar_surface.blit(label_surface, label_rect)
+                
+                # Draw value (possibly multiline)
+                for j, line in enumerate(value.split('\n')):
+                    value_surface = scale_font.render(line, True, WHITE)
+                    value_rect = value_surface.get_rect(left=text_x + 10, centery=text_y + 8 + (j * 16))
+                    sidebar_surface.blit(value_surface, value_rect)
+            
+            y_pos += bar_height + 20  # Adjust for the bar and padding
 
         # Update max scroll value
         self.max_scroll = max(0, y_pos - self.visible_height)
@@ -176,6 +251,20 @@ class UI:
         """Return True if sidebar animation is in progress"""
         return self.sidebar_animation_start > 0
 
+    def screen_to_sidebar_pos(self, pos):
+        """Convert screen coordinates to sidebar content coordinates"""
+        sidebar_x = WIDTH - (SIDEBAR_WIDTH * self.sidebar_animation)
+        return (pos[0] - sidebar_x, pos[1] + self.scroll_y)
+    
+    def get_content_rect(self, rect):
+        """Get the actual content rectangle accounting for scroll"""
+        return pygame.Rect(
+            rect.x,
+            rect.y + self.scroll_y,
+            rect.width,
+            rect.height
+        )
+
     def is_clicking_ui(self, pos):
         """Return True if the click position is on any UI element"""
         # Treat entire screen as UI during animation
@@ -192,6 +281,9 @@ class UI:
         if self.sidebar_animation > 0:
             sidebar_x = WIDTH - (SIDEBAR_WIDTH * self.sidebar_animation)
             if pos[0] >= sidebar_x:
-                return True
+                # Convert screen position to content position
+                content_pos = self.screen_to_sidebar_pos(pos)
+                return (0 <= content_pos[0] <= SIDEBAR_WIDTH and 
+                       0 <= content_pos[1] <= self.max_scroll + self.visible_height)
                 
         return False
