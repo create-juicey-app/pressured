@@ -96,7 +96,11 @@ class SnackbarMessage:
 class Snackbar:
     def __init__(self, width, height):
         self.messages = []
-        self.font = pygame.font.SysFont('arial', 16)
+        try:
+            self.font = pygame.font.Font('./fonts/fontalt.ttf', 16)
+        except (FileNotFoundError, RuntimeError) as e:
+            print(f"Could not load snackbar font: {e}")
+            self.font = pygame.font.SysFont('arial', 16)
         self.max_messages = 5
         self.message_height = 25
         self.message_width = 250
@@ -167,7 +171,7 @@ class Snackbar:
             
             # Draw text
             text_color = (*WHITE, msg.opacity)
-            text_surface = self.font.render(msg.current_message, True, text_color)
+            text_surface = self.font.render(msg.current_message, False, text_color)  # False = no antialiasing
             text_rect = text_surface.get_rect(
                 left=5,
                 centery=scaled_height // 2

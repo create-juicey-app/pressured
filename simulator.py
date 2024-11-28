@@ -18,9 +18,15 @@ class Simulator:
     def __init__(self):
         pygame.init()
         self.win = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Room Pressure Simulator")
+        pygame.display.set_caption("Pressurex V0.4")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont('arial', 20)
+
+        # Initialize font with proper error handling
+        try:
+            self.font = pygame.font.Font('./fonts/font.ttf', 20)
+        except (FileNotFoundError, RuntimeError) as e:
+            print(f"Could not load main font: {e}")
+            self.font = pygame.font.SysFont('arial', 20)
         
         self.mode = Mode.CREATE
         self.selected_tool = Tool.WALL

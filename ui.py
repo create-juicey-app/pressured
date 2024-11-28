@@ -69,7 +69,7 @@ class UI:
         
         self.draw_paper_container(animated_rect, color, alpha, elevation, surface)
         
-        text_surface = self.font.render(text, True, (255, 255, 255, alpha))
+        text_surface = self.font.render(text, False, (255, 255, 255, alpha))  # False = no antialiasing
         text_rect = text_surface.get_rect(center=animated_rect.center)
         surface.blit(text_surface, text_rect)
 
@@ -138,7 +138,7 @@ class UI:
                 # Category header
                 header_rect = pygame.Rect(5, y_pos - self.scroll_y, SIDEBAR_WIDTH - 10, 30)
                 self.draw_paper_container(header_rect, UI_SURFACE, surface=sidebar_surface)
-                title_surface = self.font.render(category, True, UI_ACCENT)
+                title_surface = self.font.render(category, False, UI_ACCENT)  # False = no antialiasing
                 sidebar_surface.blit(title_surface, (15, y_pos - self.scroll_y + 5))
                 y_pos += 35
 
@@ -159,13 +159,16 @@ class UI:
                 y_pos += 10
 
         if mode == Mode.INSPECT:
-            # Create a font for the scale - bigger than before
-            scale_font = pygame.font.SysFont('arial', int(self.font.get_height() / 2))
+            try:
+                scale_font = pygame.font.Font('./fonts/font.ttf', int(self.font.get_height() / 2))
+            except (FileNotFoundError, RuntimeError) as e:
+                print(f"Could not load scale font: {e}")
+                scale_font = pygame.font.SysFont('arial', int(self.font.get_height() / 2))
             
             y_pos += 20
             header_rect = pygame.Rect(5, y_pos - self.scroll_y, SIDEBAR_WIDTH - 10, 30)
             self.draw_paper_container(header_rect, UI_SURFACE, surface=sidebar_surface)
-            title_surface = self.font.render("Breathing Scale", True, UI_ACCENT)
+            title_surface = self.font.render("Breathing Scale", False, UI_ACCENT)  # False = no antialiasing
             sidebar_surface.blit(title_surface, (15, y_pos - self.scroll_y + 5))
             y_pos += 35
 
@@ -214,13 +217,13 @@ class UI:
                 text_y = bar_rect.y + (i * segment_height) + (segment_height / 2)
                 
                 # Draw label
-                label_surface = scale_font.render(label, True, WHITE)
+                label_surface = scale_font.render(label, False, WHITE)  # False = no antialiasing
                 label_rect = label_surface.get_rect(left=text_x, centery=text_y - 8)
                 sidebar_surface.blit(label_surface, label_rect)
                 
                 # Draw value (possibly multiline)
                 for j, line in enumerate(value.split('\n')):
-                    value_surface = scale_font.render(line, True, WHITE)
+                    value_surface = scale_font.render(line, False, WHITE)  # False = no antialiasing
                     value_rect = value_surface.get_rect(left=text_x + 10, centery=text_y + 8 + (j * 16))
                     sidebar_surface.blit(value_surface, value_rect)
             
